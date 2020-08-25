@@ -79,11 +79,22 @@ def gen_i_node_of_spiral_coord(i, r_init, d_r, phi_init, d_phi):
     return polar_to_cartesian(r_init + i * d_r, phi_init + i * d_phi)
 
 
+def rest_angle(p_i_minus_1, p_i, p_i_plus_1):
+    return np.pi / 2 - np.arctan2(p_i_plus_1[1] - p_i[1], p_i_plus_1[0] - p_i[0]) - \
+           np.arctan2(p_i[0] - p_i_minus_1[1], p_i[0] - p_i_minus_1[1])
+
+
 def add_joint(space, body1, body2, p1, p2, colliding=True):
     joint = pymunk.PinJoint(body1, body2, to_new_origin(p1), to_new_origin(p2))
     joint.collide_bodies = colliding
     space.add(joint)
     return joint
+
+
+def add_damped_rotary_spring(space, body1, body2, rest_angle, stiffness, damping):
+    damped_rotatory_spring = pymunk.DampedRotarySpring(body1, body2, rest_angle, stiffness, damping)
+    space.add(damped_rotatory_spring)
+    return damped_rotatory_spring
 
 
 # rod = add_rod(space, to_new_origin((0, 0)), to_new_origin((100, 200)))
@@ -121,20 +132,30 @@ for i in range(amount_of_nodes):
 for i in range(amount_of_nodes - 1):
     joint = add_joint(space, rods_p1_p2[0][i], rods_p1_p2[0][i + 1],
                       rods_p1_p2[2][i], rods_p1_p2[1][i + 1], colliding=False)
+    spring = add_damped_rotary_spring(space, rods_p1_p2[0][i + 1], rods_p1_p2[0][i],
+                                      -d_phi,
+                                      1000000., 100000.)
 
-ball1 = add_ball(space, (0, 300), velocity=(0, -20))
+# ball1 = add_ball(space, (0, 300), velocity=(0, -20 * 0))
 
-# rod1 = add_rod(space, (200, 0), (200, 200))
-# rod2 = add_rod(space, (100, 100), (300, 100))
+# rod1 = add_rod(space, (0, 0), (0, 200))
+# rod2 = add_rod(space, (0, 200), (200, 200))
 #
-# joint = add_joint(space, rod1, rod2, (200, 100), (250, 100), colliding=False)
+# joint = add_joint(space, rod1, rod2, (0, 200), (0, 200), False)
+#
+# rotatory_spring = pymunk.DampedRotarySpring(rod2, rod1, np.deg2rad(90), 1000000., 1000000.)
+#
+# space.add(rotatory_spring)
 #
 # rod1.angular_velocity = 1
 # rod1.velocity = (-30, 0)
 
+
 time_step = 1 / 60
 
-steps_per_iteration = 1
+steps_per_iteration = 5
+
+simulation_is_paused = False
 
 while True:
     for event in pygame.event.get():
@@ -142,11 +163,14 @@ while True:
             exit()
         elif event.type == KEYDOWN and event.key == K_ESCAPE:
             exit()
+        elif event.type == KEYDOWN and event.key == K_SPACE:
+            simulation_is_paused = not simulation_is_paused
 
     screen.fill(pygame.color.THECOLORS["white"])
 
-    for i in range(steps_per_iteration):
-        space.step(time_step)
+    if not simulation_is_paused:
+        for i in range(steps_per_iteration):
+            space.step(time_step)
 
     space.debug_draw(draw_options)
     pygame.display.flip()
