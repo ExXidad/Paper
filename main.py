@@ -1,4 +1,7 @@
 import math
+import sys
+
+import Timer
 
 import pygame
 import pygame.color
@@ -12,18 +15,11 @@ import numpy as np
 
 from my_tuple_operations import *
 
-pymunk.pygame_util.positive_y_is_up = True
-
 window_size = (1500, 800)
-
-pygame.init()
-screen = pygame.display.set_mode(window_size)
-clock = pygame.time.Clock()
-font = pygame.font.Font(None, 24)
 
 space = pymunk.Space()
 space.gravity = (0.0, 0.0)
-draw_options = pymunk.pygame_util.DrawOptions(screen)
+debug_options = pymunk.SpaceDebugDrawOptions()
 
 
 def add_ball(space, pos, velocity=(0, 0), friction=1):
@@ -136,38 +132,60 @@ for i in range(amount_of_nodes - amount_of_holding_joints, amount_of_nodes):
     holding_joints.append(add_joint(space, space.static_body, rods_p1_p2[0][i],
                                     rods_p1_p2[2][i], rods_p1_p2[2][i]))
 
-# Iteration loop
-
-time_step = 1/5
-steps_per_iteration = 10
+# Main loop
+time_step = 1 / 60
+steps_per_iteration = 120
 simulation_is_paused = False
 
-info_iteration_counter = 0
-info_txt = font.render("", 1, pygame.color.THECOLORS["black"])
+iteration_counter = 0
+iterations_to_compute = 2000
+iterations_to_cutoff = 500
+
+original_stdout = sys.stdout
+file = open("output.txt", "w")
+sys.stdout = file
+
+print("Computation has started!", file=original_stdout)
+
+exec_timer = Timer.Timer()
+exec_timer.start()
+
+expectation_timer = Timer.Timer()
+expectation_timer.start()
 
 while True:
-    for event in pygame.event.get():
-        if event.type == QUIT:
-            exit()
-        elif event.type == KEYDOWN and event.key == K_ESCAPE:
-            exit()
-        elif event.type == KEYDOWN and event.key == K_SPACE:
-            simulation_is_paused = not simulation_is_paused
-        elif event.type == KEYDOWN and event.key == K_1 and currently_holding:
-            currently_holding = False
-            for holding_joint in holding_joints:
-                space.remove(holding_joint)
-
-    screen.fill(pygame.color.THECOLORS["white"])
-
+    # Scene iteration loop
     if not simulation_is_paused:
         for i in range(steps_per_iteration):
             for rod in rods_p1_p2[0]:
-                apply_rod_scene_friction(rod, scene_friction=0.05)
+                apply_rod_scene_friction(rod, scene_friction=0.)
             space.step(time_step)
 
-    space.debug_draw(draw_options)
-    pygame.display.flip()
+    space.debug_draw(debug_options)
+    print("NEW_FRAME")
 
-    clock.tick(60)
-    pygame.display.set_caption("fps: " + str(clock.get_fps()))
+    iteration_counter += 1
+
+    if iteration_counter % int(iterations_to_compute / 100) == 0:
+        print("Progress: " + str(iteration_counter / iterations_to_compute * 100) + "%", file=original_stdout)
+
+        expectation_timer.stop()
+
+        iteration_time = expectation_timer.get_elapsed_time()
+        expected_time = iteration_time * (iterations_to_compute - iteration_counter) / int(iterations_to_compute / 100)
+
+        print("Expected time left: ", file=original_stdout)
+        expectation_timer.print_secs(expected_time, file=original_stdout)
+        print("\n", file=original_stdout)
+
+        expectation_timer.start()
+
+    if iteration_counter == iterations_to_cutoff:
+        print("Cutoff!", file=original_stdout)
+        for holding_joint in holding_joints:
+            space.remove(holding_joint)
+
+    if iteration_counter == iterations_to_compute:
+        exec_timer.stop()
+        exec_timer.show_elapsed_time(file=original_stdout)
+        exit()
