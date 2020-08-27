@@ -19,7 +19,6 @@ window_size = (1500, 800)
 
 space = pymunk.Space()
 space.gravity = (0.0, 0.0)
-debug_options = pymunk.SpaceDebugDrawOptions()
 
 
 def add_ball(space, pos, velocity=(0, 0), friction=1):
@@ -39,7 +38,7 @@ def add_rod(space, p1, p2, thickness=1):
     shape.mass = shape.area
     shape.friction = 5
     space.add(body, shape)
-    return body
+    return body, shape
 
 
 newOrigin = tuple_mul(window_size, 0.5)
@@ -93,6 +92,16 @@ def apply_rod_scene_friction(rod, scene_friction=0.1, g_const=9.81):
     rod.torque = - sgn(rod.angular_velocity) * compensation_torque
 
 
+def add_frame_to_save(shapes, array):
+    array.append([])
+    for shape in shapes:
+        pt = shape.a
+        array[-1].append([pt[0], pt[1]])
+
+    pt = shapes[-1].b
+    array[-1].append([pt[0], pt[1]])
+
+
 # Generating initial spiral
 
 amount_of_nodes = 300
@@ -103,12 +112,16 @@ r_init = 160
 d_r = d_phi
 
 rods_p1_p2 = [[], [], []]
+shapes = []
 
 for i in range(amount_of_nodes):
     p1 = gen_i_node_of_spiral_coord(i, r_init, d_r, phi_init, d_phi)
     p2 = gen_i_node_of_spiral_coord(i + 1, r_init, d_r, phi_init, d_phi)
 
-    rods_p1_p2[0].append(add_rod(space, p1, p2))
+    rod, shape = add_rod(space, p1, p2)
+
+    shapes.append(shape)
+    rods_p1_p2[0].append(rod)
     rods_p1_p2[1].append(p1)
     rods_p1_p2[2].append(p2)
 
@@ -141,11 +154,9 @@ iteration_counter = 0
 iterations_to_compute = 2000
 iterations_to_cutoff = 500
 
-original_stdout = sys.stdout
-file = open("output.txt", "w")
-sys.stdout = file
+data = []
 
-print("Computation has started!", file=original_stdout)
+print("Computation has started!")
 
 exec_timer = Timer.Timer()
 exec_timer.start()
@@ -161,31 +172,31 @@ while True:
                 apply_rod_scene_friction(rod, scene_friction=0.)
             space.step(time_step)
 
-    space.debug_draw(debug_options)
-    print("NEW_FRAME")
+    add_frame_to_save(shapes, data)
 
     iteration_counter += 1
 
-    if iteration_counter % int(iterations_to_compute / 100) == 0:
-        print("Progress: " + str(iteration_counter / iterations_to_compute * 100) + "%", file=original_stdout)
+    if int(iterations_to_compute / 100) != 0 and iteration_counter % int(iterations_to_compute / 100) == 0:
+        print("Progress: " + str(iteration_counter / iterations_to_compute * 100) + "%")
 
         expectation_timer.stop()
 
         iteration_time = expectation_timer.get_elapsed_time()
         expected_time = iteration_time * (iterations_to_compute - iteration_counter) / int(iterations_to_compute / 100)
 
-        print("Expected time left: ", file=original_stdout)
-        expectation_timer.print_secs(expected_time, file=original_stdout)
-        print("\n", file=original_stdout)
+        print("Expected time left: ")
+        expectation_timer.print_secs(expected_time)
+        print("\n")
 
         expectation_timer.start()
 
     if iteration_counter == iterations_to_cutoff:
-        print("Cutoff!", file=original_stdout)
+        print("Cutoff!")
         for holding_joint in holding_joints:
             space.remove(holding_joint)
 
     if iteration_counter == iterations_to_compute:
         exec_timer.stop()
-        exec_timer.show_elapsed_time(file=original_stdout)
+        exec_timer.show_elapsed_time()
+        np.save("data", data)
         exit()

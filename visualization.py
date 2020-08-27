@@ -1,34 +1,34 @@
-import pymunk
 import matplotlib.pyplot as plt
-import pymunk.matplotlib_util
+from matplotlib import animation
 from my_tuple_operations import *
-
-space = pymunk.Space()
-space.gravity = (0, -9.81)
+import numpy as np
 
 window_size = (1500, 800)
 newOrigin = tuple_mul(window_size, 0.5)
 
 fig = plt.figure(figsize=(14, 10))
-ax = plt.axes(xlim=(0, 1000), ylim=(0, 700))
+ax = plt.axes(xlim=(0, window_size[0]), ylim=(0, window_size[1]))
 ax.set_aspect("equal")
-
-options = pymunk.matplotlib_util.DrawOptions(ax)
-
-
-def add_ball(space, pos, velocity=(0, 0), friction=1):
-    body = pymunk.Body()
-    body.position = pos
-    body.velocity = velocity
-    shape = pymunk.Circle(body, 20)
-    shape.mass = shape.area
-    shape.friction = friction
-    space.add(body, shape)
-    return body
+line, = ax.plot([], [])
 
 
-ball = add_ball(space, (0, 0))
+# initialization function: plot the background of each frame
+def init():
+    line.set_data([], [])
+    return line,
 
-space.debug_draw(options)
 
-fig.show()
+# animation function.  This is called sequentially
+def animate(i):
+    x = data[i, :, 0]
+    y = data[i, :, 1]
+    line.set_data(x, y)
+    return line,
+
+
+data = np.load("data.npy")
+
+anim = animation.FuncAnimation(fig, animate, init_func=init,
+                               frames=len(data), interval=20, blit=True)
+
+plt.show()

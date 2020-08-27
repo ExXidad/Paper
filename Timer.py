@@ -35,7 +35,7 @@ class Timer:
         return self.elapsed_time()
 
     def show_elapsed_time(self, file=sys.stdout):
-        self.print_secs(elapsed_time(), file)
+        self.print_secs(self.elapsed_time(), file)
 
     def time(self):
         return time.perf_counter
