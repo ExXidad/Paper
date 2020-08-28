@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib import animation
 from my_tuple_operations import *
 import numpy as np
+import time
 
 window_size = (1500, 800)
 newOrigin = tuple_mul(window_size, 0.5)
@@ -30,5 +31,8 @@ data = np.load("data.npy")
 
 anim = animation.FuncAnimation(fig, animate, init_func=init,
                                frames=len(data), interval=20, blit=True)
+
+print(len(data))
+
 
 plt.show()

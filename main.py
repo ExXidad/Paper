@@ -14,8 +14,19 @@ import pymunk.pygame_util
 import numpy as np
 
 from my_tuple_operations import *
+from my_debug_options import MyOptions
 
 window_size = (1500, 800)
+
+pymunk.pygame_util.positive_y_is_up = True
+pygame.init()
+screen = pygame.display.set_mode(window_size)
+clock = pygame.time.Clock()
+font = pygame.font.Font(None, 24)
+draw_options = pymunk.pygame_util.DrawOptions(screen)
+
+my_options = MyOptions()
+my_options.flags = 1
 
 space = pymunk.Space()
 space.gravity = (0.0, 0.0)
@@ -38,7 +49,7 @@ def add_rod(space, p1, p2, thickness=1):
     shape.mass = shape.area
     shape.friction = 5
     space.add(body, shape)
-    return body, shape
+    return body
 
 
 newOrigin = tuple_mul(window_size, 0.5)
@@ -92,16 +103,6 @@ def apply_rod_scene_friction(rod, scene_friction=0.1, g_const=9.81):
     rod.torque = - sgn(rod.angular_velocity) * compensation_torque
 
 
-def add_frame_to_save(shapes, array):
-    array.append([])
-    for shape in shapes:
-        pt = shape.a
-        array[-1].append([pt[0], pt[1]])
-
-    pt = shapes[-1].b
-    array[-1].append([pt[0], pt[1]])
-
-
 # Generating initial spiral
 
 amount_of_nodes = 300
@@ -112,16 +113,12 @@ r_init = 160
 d_r = d_phi
 
 rods_p1_p2 = [[], [], []]
-shapes = []
 
 for i in range(amount_of_nodes):
     p1 = gen_i_node_of_spiral_coord(i, r_init, d_r, phi_init, d_phi)
     p2 = gen_i_node_of_spiral_coord(i + 1, r_init, d_r, phi_init, d_phi)
 
-    rod, shape = add_rod(space, p1, p2)
-
-    shapes.append(shape)
-    rods_p1_p2[0].append(rod)
+    rods_p1_p2[0].append(add_rod(space, p1, p2))
     rods_p1_p2[1].append(p1)
     rods_p1_p2[2].append(p2)
 
@@ -146,15 +143,12 @@ for i in range(amount_of_nodes - amount_of_holding_joints, amount_of_nodes):
                                     rods_p1_p2[2][i], rods_p1_p2[2][i]))
 
 # Main loop
-time_step = 1 / 60
-steps_per_iteration = 120
-simulation_is_paused = False
+time_step = 1 / 10
+steps_per_iteration = 60
 
 iteration_counter = 0
-iterations_to_compute = 2000
-iterations_to_cutoff = 500
-
-data = []
+iterations_to_compute = 100
+iterations_to_cutoff = 0
 
 print("Computation has started!")
 
@@ -165,18 +159,37 @@ expectation_timer = Timer.Timer()
 expectation_timer.start()
 
 while True:
+    for event in pygame.event.get():
+        if event.type == QUIT:
+            exit()
+        elif event.type == KEYDOWN and event.key == K_ESCAPE:
+            exit()
+
+    # Draw to the screen
+    screen.fill(pygame.color.THECOLORS["white"])
+    space.debug_draw(draw_options)
+    pygame.display.flip()
+
+    clock.tick(60)
+    pygame.display.set_caption("fps: " + str(clock.get_fps()))
+
+    # File output
+    my_options.new_frame()
+    space.debug_draw(my_options)
+
     # Scene iteration loop
-    if not simulation_is_paused:
-        for i in range(steps_per_iteration):
-            for rod in rods_p1_p2[0]:
-                apply_rod_scene_friction(rod, scene_friction=0.)
-            space.step(time_step)
+    for i in range(steps_per_iteration):
+        for rod in rods_p1_p2[0]:
+            apply_rod_scene_friction(rod, scene_friction=0.)
+        space.step(time_step)
 
-    add_frame_to_save(shapes, data)
+    # Progress counter
+    if int(iterations_to_compute / 100) == 0:
+        progress_step = 1
+    else:
+        progress_step = int(iterations_to_compute / 100)
 
-    iteration_counter += 1
-
-    if int(iterations_to_compute / 100) != 0 and iteration_counter % int(iterations_to_compute / 100) == 0:
+    if iteration_counter % progress_step == 0:
         print("Progress: " + str(iteration_counter / iterations_to_compute * 100) + "%")
 
         expectation_timer.stop()
@@ -190,13 +203,17 @@ while True:
 
         expectation_timer.start()
 
+    # Release the outer layer
     if iteration_counter == iterations_to_cutoff:
         print("Cutoff!")
         for holding_joint in holding_joints:
             space.remove(holding_joint)
 
+    # Finish the simulation
     if iteration_counter == iterations_to_compute:
         exec_timer.stop()
         exec_timer.show_elapsed_time()
-        np.save("data", data)
+        my_options.save()
         exit()
+
+    iteration_counter += 1
